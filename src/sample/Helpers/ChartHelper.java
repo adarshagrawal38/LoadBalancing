@@ -4,6 +4,7 @@ package sample.Helpers;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Bounds;
 import javafx.scene.Group;
 import javafx.scene.Node;
@@ -54,6 +55,22 @@ public class ChartHelper {
         //barChart.setStyle("-fx-background-color: #3498db");
 
         return barChart;
+    }
+
+    public static PieChart getPieChart(ArrayList<String> itemNameList, ArrayList<Integer> itemValueList, String title) {
+
+        ObservableList<PieChart.Data> pieChartData = FXCollections.observableArrayList();
+        for (int i=0;i<itemNameList.size();i++) {
+            if (itemValueList.get(i)==0)
+                continue;
+            pieChartData.add(new PieChart.Data(itemNameList.get(i),  itemValueList.get(i)));
+        }
+        PieChart chart = new PieChart(pieChartData);
+        chart.setPrefHeight(500);
+        chart.setPrefHeight(500);
+        chart.setTitle(title);
+
+        return chart;
     }
 
 

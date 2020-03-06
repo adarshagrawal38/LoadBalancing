@@ -3,6 +3,7 @@ package sample;
 import com.jfoenix.controls.*;
 import com.jfoenix.validation.NumberValidator;
 import com.jfoenix.validation.RequiredFieldValidator;
+import com.sun.org.apache.xpath.internal.SourceTree;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
@@ -18,10 +19,10 @@ import org.cloudbus.cloudsim.lists.VmList;
 import org.cloudbus.cloudsim.provisioners.BwProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.PeProvisionerSimple;
 import org.cloudbus.cloudsim.provisioners.RamProvisionerSimple;
-import sample.Helpers.Bus;
-import sample.Helpers.Constants;
-import sample.Helpers.Messages;
+import sample.Helpers.*;
+import sun.misc.VM;
 
+import javax.xml.transform.Source;
 import java.awt.*;
 import java.text.DecimalFormat;
 import java.util.*;
@@ -37,12 +38,15 @@ public class HomeController extends Base{
     @FXML
     public JFXTextField vm_txt;
 
+    @FXML
+    private JFXCheckBox keepSameDataCheckBox;
+
 
     @FXML
     private JFXListView<VBox> algorithmListView;
 
     /** The cloudlet list. */
-    private static List<Cloudlet> cloudletList;
+    public static List<Cloudlet> cloudletList;
 
 
     Techniques techniques;
@@ -51,12 +55,15 @@ public class HomeController extends Base{
     ArrayList<String> algorithms;
 
     /** The vmlist. */
-    private static List<Vm> vmlist;
+    public static List<Vm> vmlist;
+
 
     public void initialize() {
         checkMaximize();
         navigationTollTips();
         algorithms = new ArrayList<>();
+        vmlist = new ArrayList<>();
+        cloudletList = new ArrayList<>();
         algorithms.add(Constants.RANDOM);
         algorithms.add(Constants.ROUND_ROBIN);
         algorithms.add(Constants.MIN_MIN);
@@ -153,14 +160,19 @@ public class HomeController extends Base{
             int brokerId = broker.getId();
 
             //Fourth step: Create one virtual machine
-            vmlist = createVM(brokerId, numberOfVM, 0);
+
+            if (!keepSameDataCheckBox.isSelected() || vmlist.size()==0 || cloudletList.size()==0) {
+
+                vmlist = createVM(brokerId, numberOfVM, 0);
+
+                cloudletList = createCloudlet(brokerId, numberOfCloudLets, 0);
+            }
 
             //submit vm list to the broker
             broker.submitVmList(vmlist);
 
 
             //Fifth step: Create two Cloudlets
-            cloudletList = createCloudlet(brokerId, numberOfCloudLets, 0);
 
 
             //submit cloudlet list to the broker
@@ -171,15 +183,40 @@ public class HomeController extends Base{
             // will submit the bound cloudlets only to the specific VM
 
 
+            VMHelper vmHelper = new VMHelper();
             Map<String, Integer> vm_cloudLet_map = new HashMap<>();
+            Map<String, Integer> vmLoad_map = new HashMap<>();
             //initlizing list
             for (Vm vm: vmlist){
                 String key = "VM "+ vm.getId();
                 vm_cloudLet_map.put(key, 0);
+                vmLoad_map.put(key, 0);
             }
 
             //Random Binding
 
+
+
+            Comparator<Cloudlet> ascendingCloudLetComparator = new Comparator<Cloudlet>() {
+
+                public int compare(Cloudlet s1, Cloudlet s2) {
+
+                    long len1 = s1.getCloudletLength();
+                    long len2 = s2.getCloudletLength();
+
+	                /*For ascending order*/
+                    return (int) (len1-len2);
+                }};
+            Comparator<Cloudlet> descendingCloudLetComparator = new Comparator<Cloudlet>() {
+
+                public int compare(Cloudlet s1, Cloudlet s2) {
+
+                    long len1 = s1.getCloudletLength();
+                    long len2 = s2.getCloudletLength();
+
+	                /*For decending  order*/
+                    return (int) (len2-len1);
+                }};
 
 
 
@@ -189,25 +226,92 @@ public class HomeController extends Base{
             String selectedAlgo = label.getText();
 
             if (selectedAlgo.equals(Constants.RANDOM)) {
+
                 for(int i=0;i<cloudletList.size();i++) {
                     Random rand = new Random();
                     int index = rand.nextInt(vmlist.size());
                     Vm vm = vmlist.get(index);
 
                     String key = "VM " + vm.getId();
+                    //System.out.println(key+" " + vm.getCurrentAllocatedMips().toString());
                     vm_cloudLet_map.put(key, vm_cloudLet_map.get(key) + 1);
+                    vmLoad_map.put(key, vmLoad_map.get(key) + (int)cloudletList.get(i).getCloudletLength());
+
                     broker.bindCloudletToVm(cloudletList.get(i).getCloudletId(),vm.getId());
                 }
+                System.out.println("GETTING overloada vms");
+                int n = vmHelper.getNumberOfVmOverloaded(vmLoad_map);
             }
             if (selectedAlgo.equals(Constants.ROUND_ROBIN)) {
                 /*WRITE code to impelement roud robin*/
 
+                int numberOfVms = vmlist.size();
+
+                int vmIndex = 0;
+
+                for (int i=0;i<cloudletList.size();i++) {
+                    if (vmIndex == numberOfVM)vmIndex=0;
+                    Vm vm = vmlist.get(vmIndex);
+                    vmIndex++;
+                    String key = "VM " + vm.getId();
+                    //System.out.println(key+" " + vm.getCurrentAllocatedMips().toString());
+                    vm_cloudLet_map.put(key, vm_cloudLet_map.get(key) + 1);
+                    vmLoad_map.put(key, vmLoad_map.get(key) + (int)cloudletList.get(i).getCloudletLength());
+
+                    broker.bindCloudletToVm(cloudletList.get(i).getCloudletId(),vm.getId());
+                }
+
             }
             if (selectedAlgo.equals(Constants.MIN_MIN)) {
                 /*Write code to implement MIN MIN algo*/
+
+
+                /*Selecting shortest job from the list
+                * Assigning sorted job to the best machine*/
+
+                /*Sortc cloudlet according to length*/
+                Collections.sort(cloudletList, ascendingCloudLetComparator);
+
+                for (Cloudlet cloudlet: cloudletList) {
+
+                    int vmId = vmHelper.getBestVmID(vmLoad_map);
+                    Vm vm= vmlist.get(vmId);;
+                    String key = "VM " + vm.getId();
+                    vm_cloudLet_map.put(key, vm_cloudLet_map.get(key) + 1);
+                    vmLoad_map.put(key, vmLoad_map.get(key) + (int)cloudlet.getCloudletLength());
+
+                    broker.bindCloudletToVm(cloudlet.getCloudletId(),vm.getId());
+
+                }
+
+                /*Suc*/
+
+
+
+
             }
             if (selectedAlgo.equals(Constants.MIN_MAX)) {
                 /*Write code to implement MIN_MAX*/
+
+
+
+                /*Selecting largest job from the list
+                * Assigning largest job to the best machine*/
+
+                Collections.sort(cloudletList, descendingCloudLetComparator);
+
+                for (Cloudlet cloudlet: cloudletList) {
+
+                    int vmId = vmHelper.getBestVmID(vmLoad_map);
+                    Vm vm= vmlist.get(vmId);;
+                    String key = "VM " + vm.getId();
+                    vm_cloudLet_map.put(key, vm_cloudLet_map.get(key) + 1);
+                    vmLoad_map.put(key, vmLoad_map.get(key) + (int)cloudlet.getCloudletLength());
+
+                    broker.bindCloudletToVm(cloudlet.getCloudletId(),vm.getId());
+
+                }
+
             }
 
 
@@ -217,7 +321,11 @@ public class HomeController extends Base{
             System.out.println(vm_cloudLet_map.toString());
 
             /*Create technique*/
-            techniques = new Techniques("Radom", vm_cloudLet_map);
+            techniques = new Techniques(selectedAlgo, vm_cloudLet_map);
+            techniques.setVmLoadMap(vmLoad_map);
+            techniques.setVmDetails(vmHelper.getVmDetails(vmLoad_map));
+            techniques.setOverUnderBalancedValue(vmHelper.getOverUnderBalancedVmCount(vmLoad_map));
+            techniques.setOverUnderBalanceString(vmHelper.getOverUnderBalancedStringList());
 
             // Sixth step: Starts the simulation
             CloudSim.startSimulation();
@@ -226,7 +334,10 @@ public class HomeController extends Base{
             // Final step: Print results when simulation is over
             List<Cloudlet> newList = broker.getCloudletReceivedList();
 
+
+            System.out.println("Current allocated imps : "+vmlist.get(0).getCurrentRequestedTotalMips());
             CloudSim.stopSimulation();
+
 
             printCloudletList(newList);
 
@@ -411,11 +522,12 @@ public class HomeController extends Base{
 
         for (int i = 0; i < vms; i++) {
 
-            int mips = ThreadLocalRandom.current().nextInt(200, 400);
+            int mips = ThreadLocalRandom.current().nextInt(1, 50);
             randomNum = ThreadLocalRandom.current().nextInt(1000, 2501);
             long bw = randomNum;
             randomNum = ThreadLocalRandom.current().nextInt(1, 5);
-            int pesNumber = randomNum; // number of cpus
+            //int pesNumber = 1; // number of cpus
+            int pesNumber = ThreadLocalRandom.current().nextInt(1, 4);
 
             vm[i] = new Vm(idShift + i, userId, mips, pesNumber, ram, bw, size, vmm, new CloudletSchedulerTimeShared());
             list.add(vm[i]);
@@ -428,7 +540,9 @@ public class HomeController extends Base{
         LinkedList<Cloudlet> list = new LinkedList<Cloudlet>();
 
         // cloudlet parameters
-        long length = 40000;
+        Random rand = new Random();
+
+        long length = ThreadLocalRandom.current().nextInt(40000, 1500000);
         long fileSize = 300;
         long outputSize = 300;
         Random randomNumberGenerator = new Random();

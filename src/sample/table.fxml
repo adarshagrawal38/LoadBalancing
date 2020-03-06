@@ -56,9 +56,9 @@
                     </children>
                 </VBox>
             <TableView fx:id="tableView" layoutX="109.0" layoutY="199.0" prefHeight="421.0" prefWidth="1493.0" AnchorPane.bottomAnchor="10.0" AnchorPane.leftAnchor="109.0" AnchorPane.rightAnchor="10.0" AnchorPane.topAnchor="199.0" />
-            <Label layoutX="135.0" layoutY="102.0" styleClass="label-user-input-field" text="Select Technique" />
+            <Label layoutX="135.0" layoutY="102.0" styleClass="label-user-input-field" text="Compare Algorithms" />
             <JFXComboBox fx:id="tech_cmb" layoutX="364.0" layoutY="98.0" prefHeight="45.0" prefWidth="297.0" styleClass="label-user-input-field" />
-            <JFXButton layoutX="751.0" layoutY="87.0" onAction="#getLogData" text="Get Result" />
+            <JFXButton layoutX="751.0" layoutY="87.0" visible="false" onAction="#getLogData" text="Get Result" />
             </children>
 
 
